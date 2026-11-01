@@ -1,0 +1,116 @@
+@prefix pc: <https://example.org/pc-ontology#> .
+@prefix qs: <https://example.org/pc-quality#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+# SHACL validates recorded data. Missing optional hardware measurements remain
+# unknown and are assessed separately, never fabricated by these shapes.
+qs:Component a sh:NodeShape ; sh:targetClass pc:Component ;
+    sh:property [ sh:path rdfs:label ; sh:minCount 1 ; sh:message "У компонента должно быть название."@ru ] ;
+    sh:property [ sh:path pc:catalogKind ; sh:minCount 1 ; sh:maxCount 1 ; sh:in ("synthetic"^^xsd:string "manufacturer"^^xsd:string) ; sh:message "Укажите тип каталога: учебный или реальный."@ru ] ;
+    sh:property [ sh:path pc:hasSource ; sh:minCount 1 ; sh:class pc:SourceDocument ; sh:message "У компонента отсутствует источник сведений."@ru ] ;
+    sh:property [ sh:path pc:price ; sh:datatype xsd:integer ; sh:minInclusive 0 ; sh:maxCount 1 ; sh:message "Известная цена должна быть одним неотрицательным целым числом."@ru ] ;
+    sh:property [ sh:path pc:peakPowerW ; sh:datatype xsd:integer ; sh:minInclusive 0 ; sh:maxCount 1 ; sh:message "Известный пик мощности должен быть неотрицательным целым числом."@ru ] .
+
+qs:CPU a sh:NodeShape ; sh:targetClass pc:CPU ;
+    sh:property [ sh:path pc:hasSocket ; sh:minCount 1 ; sh:maxCount 1 ; sh:class pc:Socket ; sh:message "CPU должен иметь один явно записанный сокет."@ru ] ;
+    sh:property [ sh:path pc:supportsMemory ; sh:minCount 1 ; sh:class pc:MemoryStandard ; sh:message "Для CPU нужен хотя бы один поддерживаемый стандарт памяти."@ru ] ;
+    sh:property [ sh:path pc:maxMemoryGB ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:integer ; sh:minExclusive 0 ; sh:message "Лимит памяти CPU должен быть положительным целым числом."@ru ] ;
+    sh:property [ sh:path pc:coreCount ; sh:maxCount 1 ; sh:datatype xsd:integer ; sh:minExclusive 0 ] ;
+    sh:property [ sh:path pc:hasIntegratedGraphics ; sh:maxCount 1 ; sh:datatype xsd:boolean ] .
+
+qs:Motherboard a sh:NodeShape ; sh:targetClass pc:Motherboard ;
+    sh:property [ sh:path pc:hasSocket ; sh:minCount 1 ; sh:maxCount 1 ; sh:class pc:Socket ; sh:message "Плата должна иметь один явно записанный сокет."@ru ] ;
+    sh:property [ sh:path pc:supportsMemory ; sh:minCount 1 ; sh:class pc:MemoryStandard ] ;
+    sh:property [ sh:path pc:memorySlots ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:integer ; sh:minExclusive 0 ; sh:message "Число слотов памяти должно быть положительным целым числом."@ru ] ;
+    sh:property [ sh:path pc:maxMemoryGB ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:integer ; sh:minExclusive 0 ] ;
+    sh:property [ sh:path pc:hasBoardForm ; sh:minCount 1 ; sh:maxCount 1 ; sh:class pc:BoardFormFactor ] ;
+    sh:property [ sh:path pc:supportedM2LengthsMM ; sh:datatype xsd:integer ; sh:minExclusive 0 ] ;
+    sh:property [ sh:path pc:hasDisplayOutput ; sh:maxCount 1 ; sh:datatype xsd:boolean ] .
+
+qs:RAM a sh:NodeShape ; sh:targetClass pc:RAM ;
+    sh:property [ sh:path pc:hasMemoryStandard ; sh:minCount 1 ; sh:maxCount 1 ; sh:class pc:MemoryStandard ] ;
+    sh:property [ sh:path pc:hasMemoryForm ; sh:minCount 1 ; sh:maxCount 1 ; sh:class pc:MemoryFormFactor ] ;
+    sh:property [ sh:path pc:capacityGB ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:integer ; sh:minExclusive 0 ] ;
+    sh:property [ sh:path pc:moduleCount ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:integer ; sh:minExclusive 0 ; sh:message "Комплект памяти должен содержать положительное число модулей."@ru ] .
+
+qs:GPU a sh:NodeShape ; sh:targetClass pc:GPU ;
+    sh:property [ sh:path pc:lengthMM ; sh:maxCount 1 ; sh:datatype xsd:integer ; sh:minExclusive 0 ] ;
+    sh:property [ sh:path pc:thicknessMM ; sh:maxCount 1 ; sh:datatype xsd:integer ; sh:minExclusive 0 ] ;
+    sh:property [ sh:path pc:requiredPCIe8 ; sh:maxCount 1 ; sh:datatype xsd:integer ; sh:minInclusive 0 ] ;
+    sh:property [ sh:path pc:required12V2x6 ; sh:maxCount 1 ; sh:datatype xsd:integer ; sh:minInclusive 0 ] .
+
+qs:PSU a sh:NodeShape ; sh:targetClass pc:PSU ;
+    sh:property [ sh:path pc:ratedPowerW ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:integer ; sh:minExclusive 0 ; sh:message "Для БП нужна положительная номинальная мощность."@ru ] ;
+    sh:property [ sh:path pc:hasPowerForm ; sh:minCount 1 ; sh:maxCount 1 ; sh:class pc:PowerFormFactor ] ;
+    sh:property [ sh:path pc:availablePCIe8 ; sh:maxCount 1 ; sh:datatype xsd:integer ; sh:minInclusive 0 ] ;
+    sh:property [ sh:path pc:available12V2x6 ; sh:maxCount 1 ; sh:datatype xsd:integer ; sh:minInclusive 0 ] ;
+    sh:property [ sh:path pc:availableEPS ; sh:maxCount 1 ; sh:datatype xsd:integer ; sh:minInclusive 0 ] ;
+    sh:property [ sh:path pc:availableSATA ; sh:maxCount 1 ; sh:datatype xsd:integer ; sh:minInclusive 0 ] .
+
+qs:Case a sh:NodeShape ; sh:targetClass pc:Case ;
+    sh:property [ sh:path pc:supportsBoardForm ; sh:minCount 1 ; sh:class pc:BoardFormFactor ] ;
+    sh:property [ sh:path pc:supportsPowerForm ; sh:minCount 1 ; sh:class pc:PowerFormFactor ] ;
+    sh:property [ sh:path pc:maxGPULengthMM ; sh:maxCount 1 ; sh:datatype xsd:integer ; sh:minExclusive 0 ] ;
+    sh:property [ sh:path pc:maxGPUThicknessMM ; sh:maxCount 1 ; sh:datatype xsd:integer ; sh:minExclusive 0 ] ;
+    sh:property [ sh:path pc:maxCoolerHeightMM ; sh:maxCount 1 ; sh:datatype xsd:integer ; sh:minExclusive 0 ] .
+
+qs:Cooler a sh:NodeShape ; sh:targetClass pc:Cooler ;
+    sh:property [ sh:path pc:supportsSocket ; sh:minCount 1 ; sh:class pc:Socket ] ;
+    sh:property [ sh:path pc:heightMM ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:integer ; sh:minExclusive 0 ] ;
+    sh:property [ sh:path pc:supportedCPUIDs ; sh:class pc:CPU ] ;
+    sh:property [ sh:path pc:unlimitedRAMClearance ; sh:maxCount 1 ; sh:datatype xsd:boolean ] .
+
+qs:Storage a sh:NodeShape ; sh:targetClass pc:Storage ;
+    sh:property [ sh:path pc:hasStorageInterface ; sh:minCount 1 ; sh:maxCount 1 ; sh:class pc:StorageInterface ] ;
+    sh:property [ sh:path pc:capacityGB ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:integer ; sh:minExclusive 0 ] .
+
+qs:Source a sh:NodeShape ; sh:targetClass pc:SourceDocument ;
+    sh:property [ sh:path rdfs:label ; sh:minCount 1 ] ;
+    sh:property [ sh:path pc:publisher ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:minLength 1 ] ;
+    sh:property [ sh:path pc:checkedDate ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:pattern "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" ; sh:message "Дата сверки источника должна иметь формат ГГГГ-ММ-ДД."@ru ] ;
+    sh:property [ sh:path pc:sourceURL ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:pattern "^https?://" ; sh:message "Ссылка на источник должна начинаться с http:// или https://."@ru ] .
+
+qs:Fact a sh:NodeShape ; sh:targetClass pc:FactAssertion ;
+    sh:property [ sh:path pc:factSubject ; sh:minCount 1 ; sh:maxCount 1 ; sh:class pc:Component ] ;
+    sh:property [ sh:path pc:factProperty ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:minLength 1 ] ;
+    sh:property [ sh:path pc:factValue ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ] ;
+    sh:property [ sh:path pc:evidenceKind ; sh:minCount 1 ; sh:maxCount 1 ; sh:in ("manufacturer"^^xsd:string "synthetic"^^xsd:string "user_input"^^xsd:string) ] ;
+    sh:property [ sh:path pc:factSource ; sh:minCount 1 ; sh:class pc:SourceDocument ; sh:message "Каждое утверждение должно иметь источник."@ru ] ;
+    sh:sparql [ sh:message "У факта производителя отсутствует URL источника."@ru ; sh:select """
+        PREFIX pc: <https://example.org/pc-ontology#>
+        PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+        SELECT $this WHERE {
+          $this pc:evidenceKind "manufacturer"^^xsd:string ; pc:factSource ?source .
+          FILTER NOT EXISTS { ?source pc:sourceURL ?url }
+        }
+    """ ] .
+
+qs:Support a sh:NodeShape ; sh:targetClass pc:CPUBoardSupport ;
+    sh:property [ sh:path pc:forCPU ; sh:minCount 1 ; sh:maxCount 1 ; sh:class pc:CPU ] ;
+    sh:property [ sh:path pc:forBoard ; sh:minCount 1 ; sh:maxCount 1 ; sh:class pc:Motherboard ] ;
+    sh:property [ sh:path pc:supportStatus ; sh:minCount 1 ; sh:maxCount 1 ; sh:in ("supported"^^xsd:string "unsupported"^^xsd:string) ] ;
+    sh:property [ sh:path pc:supportSource ; sh:minCount 1 ; sh:class pc:SourceDocument ] ;
+    sh:or (
+        [ sh:property [ sh:path pc:supportStatus ; sh:hasValue "unsupported"^^xsd:string ] ]
+        [ sh:property [ sh:path pc:minBios ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:integer ; sh:minInclusive 0 ] ]
+        [ sh:property [ sh:path pc:minBiosLabel ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:minLength 1 ] ]
+    ) ; sh:message "Для положительной поддержки укажите условие BIOS; отрицательный профиль не требует минимальной версии."@ru .
+
+qs:Constraint a sh:NodeShape ; sh:targetClass pc:Constraint ;
+    sh:property [ sh:path pc:ruleCode ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:pattern "^(R[0-9]{2}|D01)$" ] .
+
+# A partial build is a valid snapshot: completeness belongs to the compatibility
+# assessment, not to a blanket requirement for eight selected components here.
+qs:Assembly a sh:NodeShape ; sh:targetClass pc:Assembly ;
+    sh:property [ sh:path pc:hasComponent ; sh:maxCount 8 ; sh:class pc:Component ] ;
+    sh:property [ sh:path [ sh:alternativePath (pc:hasAssessment [ sh:inversePath pc:assessesBuild ]) ] ; sh:minCount 1 ; sh:class pc:Assessment ] ;
+    sh:property [ sh:path pc:graphicsMode ; sh:minCount 1 ; sh:maxCount 1 ; sh:in ("discrete"^^xsd:string "integrated"^^xsd:string) ] ;
+    sh:property [ sh:path pc:createdAt ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ] .
+
+qs:Assessment a sh:NodeShape ; sh:targetClass pc:Assessment ;
+    sh:property [ sh:path pc:assessesBuild ; sh:minCount 1 ; sh:maxCount 1 ; sh:class pc:Assembly ] ;
+    sh:property [ sh:path pc:appliesConstraint ; sh:minCount 1 ; sh:maxCount 1 ; sh:class pc:Constraint ] ;
+    sh:property [ sh:path pc:assessmentMessage ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:minLength 1 ] ;
+    sh:or ( [ sh:class pc:PassedAssessment ] [ sh:class pc:FailedAssessment ] [ sh:class pc:UnknownAssessment ] ) .
