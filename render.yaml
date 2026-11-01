@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: contour-pc-ontology
+    runtime: docker
+    plan: free
+    region: frankfurt
+    branch: main
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /_stcore/health
+    envVars:
+      - key: PORT
+        value: "10000"
