@@ -1,1 +1,1 @@
-"""PC component ontology and compatibility rules."""
+"""Ontology-backed educational PC compatibility system."""

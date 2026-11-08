@@ -18,6 +18,8 @@ from pc_ontology.report import render_report
 from pc_ontology.quality import audit, SHAPES_PATH
 from pc_ontology.clarifications import requests as clarification_requests, checklist_markdown
 from pc_ontology.explorer import neighborhood, label as entity_label
+from pc_ontology.purchase import assessment, replacement_impact, shopping_cost, checklist
+from pc_ontology.version import build_label
 
 st.set_page_config(page_title="Контур · подбор комплектующих", page_icon="◈", layout="wide")
 public_demo = bool(globals().get("PUBLIC_DEMO", False))
@@ -38,6 +40,7 @@ h2,h3 {letter-spacing:-.4px}
 .statusbox.wait {background:#fff7e6;border-color:#ead5a4;color:#7d601f}
 .statusbox strong {font-size:21px;display:block;margin-bottom:6px}
 .smallnote {color:#68796e;font-size:13px}
+.statusbox,.lead,[data-testid="stCaptionContainer"] {overflow-wrap:anywhere}
 @media(max-width:1050px) {
   [data-testid="stHorizontalBlock"] {flex-wrap:wrap!important}
   [data-testid="stColumn"] {min-width:min(100%,300px)!important;flex:1 1 300px!important}
@@ -77,6 +80,9 @@ def money(n):
 
 
 def apply(build):
+    for key in list(st.session_state):
+        if key.startswith("purchase_price_"):
+            del st.session_state[key]
     for slot in SLOTS:
         st.session_state["part_" + slot] = build.parts.get(slot)
     st.session_state.bios_text = "" if build.bios_revision is None else str(build.bios_revision)
@@ -116,7 +122,9 @@ if "part_CPU" not in st.session_state:
                 notify("Восстановлена последняя конфигурация с этого компьютера.")
         except (ValueError, TypeError, sqlite3.Error) as exc:
             st.session_state.draft_recovery_error = str(exc)
-    apply(initial if initial is not None else replace(DEMOS["Совместимая сборка"], price_overrides=saved_prices))
+    apply(initial if initial is not None else (Build(price_overrides=saved_prices) if public_demo else replace(DEMOS["Совместимая сборка"], price_overrides=saved_prices)))
+    if public_demo and initial is None:
+        st.session_state.catalog_mode = "manufacturer"
 if "pending_build" in st.session_state:
     apply(st.session_state.pop("pending_build"))
 st.session_state.setdefault("catalog_mode", "synthetic")
@@ -132,9 +140,22 @@ def details(check):
 
 with st.sidebar:
     st.markdown("### ◈ Контур")
-    st.caption("Лаборатория совместимости ПК")
+    st.caption("Помощник перед покупкой и апгрейдом")
     st.divider()
     st.markdown("**Готовые сценарии**")
+    if st.button("Память и питание: две замены", key="demo_repair", width="stretch",
+                 help="Учебный пример: DDR4 вместо DDR5 и БП 400 Вт. Остальные шесть деталей сохраняются."):
+        good = DEMOS["Совместимая сборка"]
+        apply(replace(good, parts={**good.parts, "RAM": "ram_d4_16", "PSU": "psu_400"}, price_overrides={}))
+        st.session_state.customer_workflow = "Обновить компьютер"
+        st.session_state.plan_mode_1 = "Исправить текущую"
+        st.session_state.upgrade_targets = ["RAM", "PSU"]
+        st.session_state.plan_objective = "changes"
+        st.session_state.upgrade_budget_enabled = False
+        st.session_state.plan_provisional = False
+        st.session_state["locked_1_RAM_PSU"] = [s for s in SLOTS if s not in {"RAM", "PSU"}]
+        st.session_state.pop("search_result", None)
+        notify("Учебный пример загружен: выбраны две категории для замены, остальные детали закреплены. Нажмите «Найти варианты».")
     for demo_index, (name, demo) in enumerate(DEMOS.items()):
         if st.button(name, key=f"demo_{demo_index}", width="stretch"):
             apply(replace(demo, price_overrides=saved_prices))
@@ -150,7 +171,7 @@ with st.sidebar:
              format_func=lambda x: "Дискретная видеокарта" if x == "discrete" else "Встроенная графика CPU")
     st.markdown("**Параметры сборки**")
     st.toggle("Учитывать бюджет", key="budget_enabled")
-    budget_value = st.number_input("Бюджет, ₽", min_value=0, step=5000, key="budget_value",
+    budget_value = st.number_input("Бюджет всей сборки, ₽", min_value=0, step=5000, key="budget_value",
                                    disabled=not st.session_state.budget_enabled)
     bios = st.text_input("Установленная ревизия BIOS", key="bios_text", placeholder="Пусто — неизвестна", max_chars=40,
                          help="Учебные платы: 100 или 200. Реальные: точная строка версии, например 2423 или 0602. Неизвестные версии не сравниваются по алфавиту.")
@@ -166,10 +187,10 @@ with st.sidebar:
             st.rerun()
         except (ValueError, TypeError) as exc:
             st.error(str(exc))
-    st.caption("Учебный проект · версия 2.2")
+    st.caption("Контур · версия " + build_label())
 
 st.markdown('<div class="brand">КОНТУР / БАЗА ЗНАНИЙ О КОМПЛЕКТУЮЩИХ</div>', unsafe_allow_html=True)
-st.title("Каждая деталь на своём месте.")
+st.title("Проверьте сборку до покупки.")
 st.markdown('<div class="lead">Соберите конфигурацию, проверьте ограничения и узнайте, почему компоненты подходят друг другу.</div>', unsafe_allow_html=True)
 st.caption("Учебный каталог содержит вымышленные модели. Реальные модели снабжены источниками производителей. Цены для них вводятся вами; неизвестные сведения требуют уточнения.")
 if public_demo:
@@ -206,15 +227,23 @@ elif store and st.session_state.get("draft_recovery_error"):
         store.save_draft(payload)
         st.session_state.pop("draft_recovery_error", None)
         st.rerun()
+workflow = st.radio("Что хотите сделать?", ["Проверить сборку", "Обновить компьютер", "Собрать с нуля"], horizontal=True, key="customer_workflow")
+workflow_id = ["Проверить сборку", "Обновить компьютер", "Собрать с нуля"].index(workflow)
+st.caption(["Выберите точные модели. Мы покажем конфликты, неподтверждённые условия и варианты замены.",
+            "Сначала укажите текущие детали в проверке сборки. Затем выберите категории для замены и бюджет покупок во вкладке подбора.",
+            "Укажите цены кандидатов, бюджет и цель подбора. Можно закрепить уже выбранные детали. Результат зависит от покрытия каталога."][workflow_id])
+st.caption(f"Моделей в реальном каталоге: {sum(c.get('catalogKind') == 'manufacturer' for c in kb.components.values())}. Если вашей точной модели нет, проверка похожей модели не подтверждает совместимость вашей детали.")
 stats = kb.stats()
 m1, m2, m3, m4 = st.columns(4)
 required_count = 7 if build.graphics_mode == "integrated" else 8
 m1.metric("Выбрано компонентов", f"{required_count - len(result.missing)} / {required_count}")
 m2.metric("Стоимость по заданным ценам", ("от " if result.unknown_prices else "") + money(result.total))
 m3.metric("Расчётный минимум БП", f"{result.estimated_power} Вт" if result.estimated_power is not None else "Нет данных")
-m4.metric("Конфликты / нет данных", f"{result.count('fail')} / {result.count('unknown')}")
+physical_review = assessment(kb, build)
+m4.metric("Конфликты / нет данных", f"{len(physical_review['conflicts'])} / {len(physical_review['unknown'])}")
 st.write("")
-builder, library, planning, catalog, ontology, quality, about = st.tabs(["Конфигуратор", "Мои сборки", "Автоподбор и исправление", "Каталог", "Онтология и вывод", "Качество данных", "О проекте"], key="workspace_tabs")
+planning_title = "Апгрейд и новая сборка"
+builder, library, planning, catalog, ontology, quality, about = st.tabs(["Проверка сборки", "Мои сборки", planning_title, "Каталог", "Онтология и вывод", "Качество данных", "О проекте"], default="Проверка сборки" if workflow_id == 0 else planning_title, key=f"workspace_tabs_{workflow_id}")
 
 with builder:
     left, right = st.columns([1.12, 1], gap="large")
@@ -232,6 +261,29 @@ with builder:
                              format_func=lambda id: "Не выбрано" if id is None else kb.components[id].title)
                 selected = st.session_state["part_" + slot]
                 st.caption(money(price_of(kb, build, selected)) if selected and price_of(kb, build, selected) is not None else "Цена не задана")
+        with st.expander("Указать цены выбранных деталей", expanded=False):
+            st.caption("Введите цену своего предложения за деталь или комплект памяти. Это не автоматическая цена магазина. Пустое поле означает неизвестную цену.")
+            with st.form("purchase_prices"):
+                price_inputs = {}
+                for kind, id in build.parts.items():
+                    if id:
+                        price_inputs[id] = st.number_input(kb.components[id].title, min_value=0, max_value=1000000000,
+                            value=price_of(kb, build, id), step=100, key="purchase_price_" + id)
+                if st.form_submit_button("Применить цены"):
+                    try:
+                        overrides = build.price_overrides.copy()
+                        for id, value in price_inputs.items():
+                            if value is None:
+                                overrides.pop(id, None)
+                            else:
+                                overrides[id] = int(value)
+                        if store:
+                            store.update_prices(price_inputs)
+                        st.session_state.pending_build = replace(build, price_overrides=overrides)
+                        st.rerun()
+                    except (ValueError, TypeError, sqlite3.Error, OSError) as exc:
+                        st.error("Не удалось сохранить цены: " + str(exc))
+        st.download_button("Скачать памятку перед покупкой", checklist(kb, build), file_name="purchase-checklist.md", mime="text/markdown")
         # Selectboxes update session_state before rerunning, so build/result above already match the selection.
         st.download_button("Сохранить сборку и объяснения", json.dumps(export_build(kb, build), ensure_ascii=False, indent=2),
                            file_name="pc-build.json", mime="application/json", width="stretch")
@@ -242,31 +294,48 @@ with builder:
         st.caption(("Черновик хранится только в вашем текущем сеансе. Скачайте JSON для длительного хранения." if public_demo else "Последняя конфигурация сохранена на этом компьютере. Для сохранения под названием откройте «Мои сборки».") if draft_saved else "Скачайте JSON, чтобы сохранить текущую конфигурацию; черновик сейчас недоступен.")
     with right:
         st.subheader("Результат проверки")
-        heading = {"pass": "Сборка прошла проверки", "fail": "Есть несовместимые компоненты", "unknown": "Нужны дополнительные сведения"}[result.status]
-        subtitle = {"pass": "Все применимые правила прототипа выполнены.", "fail": "Откройте конфликт, чтобы увидеть причину и исходные характеристики.",
-                    "unknown": "Выберите недостающие компоненты или уточните неизвестные характеристики."}[result.status]
-        style = {"pass": "good", "fail": "bad", "unknown": "wait"}[result.status]
+        review = assessment(kb, build)
+        heading = {"pass": "Сборка прошла проверки", "fail": "Есть несовместимые компоненты", "unknown": "Нужны дополнительные сведения"}[review["status"]]
+        subtitle = {"pass": "Известные условия совместимости выполнены. Это не проверка всех возможных ограничений оборудования.",
+                    "fail": "Исправьте конфликты ниже до покупки. Стоимость проверяется отдельно.",
+                    "unknown": "Отсутствие конфликтов не подтверждает совместимость: дополните состав и уточните сведения."}[review["status"]]
+        style = {"pass": "good", "fail": "bad", "unknown": "wait"}[review["status"]]
         st.markdown(f'<div class="statusbox {style}"><strong>{heading}</strong>{subtitle}</div>', unsafe_allow_html=True)
-        if result.missing:
-            st.info("Не выбраны: " + ", ".join(KINDS[s].lower() for s in result.missing))
-        shown = st.radio("Показать проверки", ["Проблемы", "Все"], horizontal=True, label_visibility="collapsed")
-        checks = [c for c in result.checks if shown == "Все" or c.status != "pass"]
-        if not checks:
-            st.success(f"Подтверждено проверок: {result.count('pass')}. Можно перейти к подбору альтернатив.")
-        with st.container(height=400, border=False):
-            for check in sorted(checks, key=lambda c: {"fail": 0, "unknown": 1, "pass": 2}[c.status]):
-                details(check)
+        if review["missing"]:
+            st.info("Добавьте в сборку: " + ", ".join(KINDS[s].lower() for s in review["missing"]))
+        st.markdown(f"**Конфликты: {len(review['conflicts'])} · Уточнения: {len(review['unknown'])} · Пройдено: {len(review['passed'])}**")
+        for check in review["conflicts"]:
+            with st.container(border=True):
+                st.error(check.title)
+                st.write(check.explanation)
+                for line in check.evidence:
+                    st.caption(line)
+                for kind in check.participants:
+                    if st.button("Подобрать: " + KINDS[kind].lower(), key=f"fix_{check.rule}_{kind}"):
+                        st.session_state.recommend_slot = kind
+                        st.session_state.fix_notice = "Варианты для категории «" + KINDS[kind] + "» показаны ниже в разделе «Подобрать замену»."
+        for check in review["budget"]:
+            if check.status == "fail":
+                st.warning("Бюджет: " + check.explanation)
+            elif check.status == "unknown":
+                st.caption("Бюджет: " + check.explanation)
         unknown_items = clarification_requests(kb, build)
         if unknown_items:
-            with st.expander(f"Что именно нужно уточнить · {len(unknown_items)}"):
+            with st.expander(f"Что именно нужно уточнить · {len(unknown_items)}", expanded=bool(review["unknown"])):
                 for item in unknown_items:
                     st.markdown(f"**{item['Компонент']} — {item['Сведения']}**")
                     st.write(item["Что сделать"])
-                    st.caption("Связанные проверки: " + ", ".join(item["Правила"]))
-                st.download_button("Скачать список уточнений", checklist_markdown(unknown_items),
-                                   file_name="clarifications.md", mime="text/markdown", key="download_clarifications")
+                    for url in item["Источники"]:
+                        if url.startswith("https://"):
+                            st.link_button("Документация производителя", url)
+                st.download_button("Скачать список уточнений", checklist_markdown(unknown_items), file_name="clarifications.md", mime="text/markdown", key="download_clarifications")
+        with st.expander("Все проверки и исходные значения"):
+            for check in result.checks:
+                details(check)
     st.divider()
     st.subheader("Подобрать замену")
+    if "fix_notice" in st.session_state:
+        st.info(st.session_state.pop("fix_notice"))
     st.caption("Оценка учитывает правила, затрагивающие выбранную категорию, и общий бюджет. Другие конфликты сборки могут сохраниться.")
     r1, r2 = st.columns([1, 2])
     with r1:
@@ -292,6 +361,14 @@ with builder:
                     st.caption("Ревизия BIOS для новой платы: " + str(row["bios_revision"] or "неизвестна — проверьте перед использованием"))
             b.markdown("**" + (money(price_of(kb, build, candidate.id)) if price_of(kb, build, candidate.id) is not None else "Нет цены") + "**")
             trial_build = replace(build, parts={**build.parts, slot: candidate.id}, bios_revision=row["bios_revision"])
+            impact = replacement_impact(kb, build, slot, candidate.id, row["bios_revision"])
+            if impact["resolved"]:
+                a.write("Исправляет: " + "; ".join(impact["resolved"]))
+            a.caption(f"После замены во всей сборке: конфликтов {impact['conflicts']}, уточнений {impact['unknown']}, не выбрано деталей {impact['missing']}.")
+            if impact["delta"] is not None:
+                b.caption("Разница: " + ("+" if impact["delta"] >= 0 else "−") + money(abs(impact["delta"])))
+            else:
+                b.caption("Разница стоимости неизвестна: укажите цены обеих деталей.")
             trial_unknown_prices = validate(kb, trial_build).unknown_prices
             b.caption("Вся сборка: " + ("от " if trial_unknown_prices else "") + money(row["total"]))
             if c.button("Выбрать", key="replace_" + candidate.id, width="stretch"):
@@ -390,22 +467,42 @@ with library:
 with planning:
     st.subheader("Полная сборка и план исправлений")
     st.write("Поиск перебирает сочетания из выбранного каталога и проверяет их теми же правилами, что конфигуратор. Можно сохранить нужные детали и выбрать цель поиска.")
-    mode = st.radio("Задача", ["Новая сборка", "Исправить текущую"], horizontal=True)
-    objective = st.selectbox("Что важнее", ["cost", "changes", "cores", "memory"] if mode == "Исправить текущую" else ["cost", "cores", "memory"],
-        format_func={"cost": "Минимальная стоимость", "changes": "Минимальное число замен", "cores": "Больше ядер CPU", "memory": "Больше оперативной памяти"}.get)
+    mode = st.radio("Задача", ["Новая сборка", "Исправить текущую"], index=1 if workflow_id == 1 else 0, horizontal=True, key=f"plan_mode_{workflow_id}")
+    must_change, purchase_budget = [], None
+    if workflow_id == 1 and mode == "Исправить текущую":
+        must_change = st.multiselect("Какие детали обязательно заменить", [s for s in SLOTS if build.parts.get(s)], format_func=KINDS.get, key="upgrade_targets")
+        if st.checkbox("Ограничить расходы на новые детали", key="upgrade_budget_enabled"):
+            purchase_budget = st.number_input("Бюджет покупок, ₽", min_value=0, value=30000, step=1000, key="upgrade_budget")
+        st.caption("Бюджет покупок учитывает только заменяемые и добавляемые детали. Стоимость продажи старых деталей не вычитается. Без тестов производительности замена не обещает прироста FPS.")
+        if build.budget is not None:
+            st.info("В боковой панели включён также бюджет всей сборки. Для ограничения только расходов на апгрейд отключите «Учитывать бюджет» и задайте бюджет покупок здесь.")
+    objective_options = (["purchases", "changes", "cores", "memory"] if workflow_id == 1 else ["cost", "changes", "cores", "memory"]) if mode == "Исправить текущую" else ["cost", "cores", "memory"]
+    if st.session_state.get("plan_objective") not in objective_options:
+        st.session_state.plan_objective = objective_options[0]
+    objective = st.selectbox("Что важнее", objective_options, key="plan_objective",
+        format_func={"cost": "Минимальная стоимость", "purchases": "Минимальные расходы на покупку", "changes": "Минимальное число замен", "cores": "Больше ядер CPU", "memory": "Больше оперативной памяти"}.get)
     st.caption("Число ядер и объём памяти — отдельные критерии. Они не заменяют измерения производительности в играх или приложениях.")
-    locked = st.multiselect("Сохранить выбранные компоненты", [s for s in SLOTS if build.parts.get(s)], format_func=KINDS.get)
-    provisional = st.checkbox("Показать также варианты с неподтверждёнными условиями", value=False)
+    lock_options = [s for s in SLOTS if build.parts.get(s) and s not in must_change]
+    locked = st.multiselect("Сохранить выбранные компоненты", lock_options,
+        default=lock_options if workflow_id == 1 and must_change else [], format_func=KINDS.get, key="locked_" + str(workflow_id) + "_" + "_".join(must_change))
+    provisional = st.checkbox("Показать также варианты с неподтверждёнными условиями", value=False, key="plan_provisional")
     st.caption("Для реального каталога это может понадобиться: TDP не подменяется пиковым потреблением, а неизвестный BIOS и габариты не считаются подтверждёнными.")
-    signature = json.dumps([export_build(kb, build), mode, objective, locked, provisional, st.session_state.catalog_mode], sort_keys=True, ensure_ascii=False)
-    if st.button("Найти варианты", type="primary", key="find_plans"):
+    signature = json.dumps([export_build(kb, build), mode, objective, locked, provisional, st.session_state.catalog_mode, must_change, purchase_budget], sort_keys=True, ensure_ascii=False)
+    if st.session_state.catalog_mode == "manufacturer":
+        st.info("Для поиска по стоимости или бюджету укажите цены кандидатов во вкладке «Каталог». Для апгрейда по расходам нужны цены новых деталей; цены сохраняемых деталей не обязательны, если отключён бюджет всей сборки. Для поиска без цен выберите цель по ядрам или памяти и отключите бюджеты. Неизвестные условия допускаются отдельной настройкой выше.")
+    needs_upgrade_target = workflow_id == 1 and mode == "Исправить текущую" and not must_change
+    if needs_upgrade_target:
+        st.info("Выберите хотя бы одну категорию для замены. Остальные выбранные детали будут сохранены по умолчанию.")
+    if st.button("Найти варианты", type="primary", key="find_plans", disabled=needs_upgrade_target):
         with st.spinner("Проверяю сочетания компонентов…"):
             original = build if mode == "Исправить текущую" else replace(build, parts={s: build.parts[s] for s in locked}, bios_revision=build.bios_revision if "Motherboard" in locked else None)
             report = search_builds(kb, original, catalog=st.session_state.catalog_mode,
                                    repair=mode == "Исправить текущую", objective=objective,
-                                   locked=locked, allow_unknown=provisional)
+                                   locked=locked, allow_unknown=provisional, must_change=must_change, replacement_budget=purchase_budget)
         st.session_state.search_result = (signature, report)
     stored = st.session_state.get("search_result")
+    if stored and stored[0] != signature:
+        st.info("Параметры изменились. Предыдущие варианты скрыты — нажмите «Найти варианты», чтобы пересчитать результат.")
     if stored and stored[0] == signature:
         report = stored[1]
         for message in report.messages:
@@ -425,6 +522,10 @@ with planning:
                                "Цена, ₽": price_of(kb, plan.build, id)} for s, id in plan.build.parts.items() if id],
                              hide_index=True, width="stretch")
                 if mode == "Исправить текущую":
+                    cost, missing_costs = shopping_cost(kb, build, plan.build)
+                    st.write("На покупку новых деталей: " + ("от " if missing_costs else "") + money(cost))
+                    if missing_costs:
+                        st.caption("Уточните цены покупок: " + ", ".join(missing_costs))
                     st.write(f"Замен: {len(plan.replacements)}. Устранённые конфликты: {', '.join(plan.resolved) or 'нет исходных конфликтов'}.")
                     for change in plan.replacements:
                         old = kb.components[change["old"]].title if change["old"] else "не выбрано"
@@ -619,7 +720,7 @@ with about:
     st.subheader("Разработка онтологии для интеллектуального подбора компьютерных комплектующих")
     st.write("Цель — представить знания о компонентах ПК и их ограничениях в формальной модели и использовать её для объяснимой проверки и подбора компонентов.")
     st.markdown("""
-**Версия 2.2**
+**Возможности приложения**
 
 - 42 учебных и 32 реальных компонента с источниками и датой проверки. Факты производителя отделены от цен пользователя.
 - В OWL представлены сборки, ограничения, результаты проверок и использованные утверждения. Сборку с объяснениями можно скачать и открыть в Protégé.
@@ -643,7 +744,7 @@ with about:
 """)
     evaluation_path = Path(__file__).parent / "docs" / "evaluation" / "results.json"
     if evaluation_path.exists():
-        assessment = json.loads(evaluation_path.read_text(encoding="utf-8"))
-        st.info(f"Оценка сконструированных сценариев: {assessment['correct']} из {assessment['total']} ожидаемых исходов. Это проверка сценариев, а не оценка точности на реальном рынке.")
+        evaluation = json.loads(evaluation_path.read_text(encoding="utf-8"))
+        st.info(f"Оценка сконструированных сценариев: {evaluation['correct']} из {evaluation['total']} ожидаемых исходов. Это проверка сценариев, а не оценка точности на реальном рынке.")
 
 kb.close()

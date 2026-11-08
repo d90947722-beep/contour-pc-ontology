@@ -31,13 +31,20 @@ class SearchResult:
 
 
 def search(kb, original=None, *, catalog="synthetic", repair=False, objective="cost",
-           allow_unknown=False, limit=3, max_nodes=50000, timeout=12, locked=()):
-    if objective not in {"cost", "changes", "cores", "memory"}:
+           allow_unknown=False, limit=3, max_nodes=50000, timeout=12, locked=(),
+           must_change=(), replacement_budget=None):
+    if objective not in {"cost", "purchases", "changes", "cores", "memory"}:
         raise ValueError("Неизвестная цель поиска.")
     original = original or Build()
     validate(kb, original)
     if set(locked) - set(ORDER):
         raise ValueError("Неизвестная фиксируемая категория.")
+    if set(must_change) - set(ORDER) or set(must_change) & set(locked):
+        raise ValueError("Категории для замены должны быть известны и не зафиксированы.")
+    if replacement_budget is not None and (type(replacement_budget) is not int or replacement_budget < 0):
+        raise ValueError("Бюджет покупок должен быть целым неотрицательным числом.")
+    if original.graphics_mode == "integrated" and "GPU" in must_change:
+        raise ValueError("Для замены видеокарты выберите дискретную графику.")
     started = monotonic()
     report = SearchResult()
     slots = [s for s in ORDER if not (s == "GPU" and original.graphics_mode == "integrated")]
@@ -47,6 +54,10 @@ def search(kb, original=None, *, catalog="synthetic", repair=False, objective="c
         items = [c for c in all_items if c.get("catalogKind") == catalog]
         if slot in locked:
             items = [c for c in items if original.parts.get(slot) == c.id]
+        if slot in must_change:
+            items = [c for c in items if original.parts.get(slot) != c.id]
+        if replacement_budget is not None or objective == "purchases":
+            items = [c for c in items if c.id == original.parts.get(slot) or price_of(kb, original, c.id) is not None]
         # A numeric budget/cost objective cannot be evaluated without supplied prices.
         if original.budget is not None or objective == "cost":
             items = [c for c in items if price_of(kb, original, c.id) is not None]
@@ -67,10 +78,14 @@ def search(kb, original=None, *, catalog="synthetic", repair=False, objective="c
         cores = kb.components[trial.parts["CPU"]].get("coreCount") or 0
         memory = kb.components[trial.parts["RAM"]].get("capacityGB") or 0
         numeric_cost = result.total if not result.unknown_prices else float("inf")
+        purchases = sum(price_of(kb, trial, id) for slot, id in trial.parts.items()
+                        if original.parts.get(slot) != id) if objective == "purchases" else 0
         # Unknown solutions never outrank confirmed solutions for a claimed optimum.
         quality = 0 if result.status == "pass" else 1
         if objective == "changes":
             return quality, changes, numeric_cost
+        if objective == "purchases":
+            return quality, purchases, changes
         if objective == "cores":
             return quality, -cores, numeric_cost, changes
         if objective == "memory":
@@ -84,6 +99,11 @@ def search(kb, original=None, *, catalog="synthetic", repair=False, objective="c
         report.visited += 1
         trial = replace(original, parts=chosen.copy(), bios_revision=bios)
         partial = validate(kb, trial)
+        if replacement_budget is not None or objective == "purchases":
+            purchases = sum(price_of(kb, original, id) for slot, id in chosen.items()
+                            if original.parts.get(slot) != id)
+            if replacement_budget is not None and purchases > replacement_budget:
+                return
         if any(c.status == "fail" for c in partial.checks):
             return
         # An unknown test with all its participants selected cannot be repaired by
@@ -101,6 +121,11 @@ def search(kb, original=None, *, catalog="synthetic", repair=False, objective="c
             if objective == "cost":
                 lower_cost = current_cost + sum(min(price_of(kb, original, c.id) for c in domains[s]) for s in slots[index:])
                 if lower_cost > best[-1].total:
+                    return
+            if objective == "purchases":
+                lower_purchases = purchases + sum(min(0 if c.id == original.parts.get(s)
+                    else price_of(kb, original, c.id) for c in domains[s]) for s in slots[index:])
+                if lower_purchases > best[-1].score[1]:
                     return
         if index == len(slots):
             if partial.status == "fail" or (partial.status != "pass" and not allow_unknown):
