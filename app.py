@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 import sqlite3
 import hashlib
 import base64
+from html import escape
 import streamlit as st
 from pc_ontology.knowledge import KnowledgeBase, QUERIES
 from pc_ontology.schema import KINDS, OWL_PATH
@@ -77,6 +78,12 @@ h3 {font-weight:700!important}
 [data-testid="stSelectbox"] [data-baseweb="select"] > div {border:1px solid #b8cae4!important;border-radius:8px!important;background:#fff;min-height:45px}
 .part-label {display:flex;align-items:center;gap:13px;min-height:49px;font-size:15px;color:#142345}
 .part-icon {display:grid;place-items:center;width:44px;height:44px;flex:0 0 44px;border-radius:10px;color:#0647d2;background:#e8f0ff;font-size:23px}
+.part-icon svg {width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.check-row {display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-bottom:1px solid #e6ecf5}
+.check-mark {display:grid;place-items:center;flex:0 0 30px;height:30px;border-radius:50%;font-weight:800}
+.check-mark.pass {color:#13823c;background:#e4f6e9}.check-mark.fail {color:#b83b2d;background:#fdeae6}.check-mark.unknown {color:#9b6a06;background:#fff3d8}
+.check-text strong {display:block;color:#162746;font-size:14px}.check-text span {display:block;color:#596b86;font-size:13px;line-height:1.45;margin-top:3px}
+.mobile-summary {display:none}
 .statusbox.good {background:#ddf5e4;border-color:#b9ebca;color:#107c36}
 .statusbox.wait {background:#fff7e4;border-color:#f0dfb3;color:#755a1f}
 .statusbox.bad {background:#fff0ec;border-color:#f2c6bb;color:#9a3829}
@@ -96,6 +103,7 @@ h3 {font-weight:700!important}
   .hero h1 {font-size:2.1rem!important}
   .hero p {font-size:1rem}
   .part-label {min-height:auto}
+  .mobile-summary {display:block;padding:10px 12px;border-radius:9px;background:#eef4ff;color:#304d7c;font-size:13px;line-height:1.4}
 }
 </style>""", unsafe_allow_html=True)
 
@@ -188,7 +196,54 @@ def details(check):
             st.caption(line)
 
 
-with st.sidebar:
+def part_icon(slot):
+    drawings = {
+        "CPU": '<rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 3v3m6-3v3M9 18v3m6-3v3M3 9h3m-3 6h3m12-6h3m-3 6h3"/>',
+        "Motherboard": '<rect x="3" y="3" width="18" height="18" rx="2"/><rect x="7" y="6" width="7" height="7" rx="1"/><path d="M17 6v8M6 17h3m3 0h5"/>',
+        "RAM": '<rect x="3" y="8" width="18" height="8" rx="1"/><path d="M7 10v3m3-3v3m3-3v3m3-3v3M6 16v2m3-2v2m3-2v2m3-2v2m3-2v2"/>',
+        "GPU": '<rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="10" cy="12" r="3"/><path d="M16 9h2m-2 3h2M6 18v2m12-2v2"/>',
+        "PSU": '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="10" cy="12" r="4"/><path d="M17 9v6m-9-5 4 4m0-4-4 4"/>',
+        "Case": '<rect x="5" y="2" width="14" height="20" rx="2"/><path d="M8 6h8M8 9h8M8 17h.01"/>',
+        "Storage": '<rect x="5" y="3" width="14" height="18" rx="2"/><circle cx="12" cy="11" r="4"/><path d="M12 11l2 2m-6 5h8"/>',
+        "Cooler": '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2"/><path d="M12 10c-3-5 1-6 2-4 1 2 0 3-2 4zm2 2c5-3 6 1 4 2-2 1-3 0-4-2zm-2 2c3 5-1 6-2 4-1-2 0-3 2-4zm-2-2c-5 3-6-1-4-2 2-1 3 0 4 2z"/>',
+    }
+    return '<svg viewBox="0 0 24 24" aria-hidden="true">' + drawings[slot] + '</svg>'
+
+
+def check_row(check):
+    symbol = {"pass": "✓", "fail": "×", "unknown": "?"}[check.status]
+    status = {"pass": "Подтверждено", "fail": "Конфликт", "unknown": "Недостаточно данных"}[check.status]
+    st.markdown(f'<div class="check-row"><span class="check-mark {check.status}">{symbol}</span><div class="check-text"><strong>{escape(check.title)} · {status}</strong><span>{escape(check.explanation)}</span></div></div>', unsafe_allow_html=True)
+
+
+def component_summary(component):
+    specs = {
+        "CPU": [("hasSocket", "Сокет", ""), ("coreCount", "Ядер", "")],
+        "Motherboard": [("hasSocket", "Сокет", ""), ("hasBoardForm", "Форм-фактор", "")],
+        "RAM": [("hasMemoryStandard", "Стандарт", ""), ("capacityGB", "Объём", " ГБ")],
+        "GPU": [("lengthMM", "Длина", " мм"), ("gpuPowerW", "Потребление", " Вт")],
+        "PSU": [("ratedPowerW", "Мощность", " Вт"), ("hasPowerForm", "Форм-фактор", "")],
+        "Case": [("maxGPULengthMM", "Видеокарта до", " мм"), ("maxCoolerHeightMM", "Кулер до", " мм")],
+        "Storage": [("hasStorageInterface", "Интерфейс", ""), ("capacityGB", "Объём", " ГБ")],
+        "Cooler": [("heightMM", "Высота", " мм"), ("supportsSocket", "Сокеты", "")],
+    }
+    values = []
+    for prop, label, unit in specs[component.kind]:
+        value = component.get(prop)
+        if value is not None and value != []:
+            value = ", ".join(map(str, value)) if isinstance(value, list) else str(value)
+            values.append(f"{label}: {value}{unit}")
+    return " · ".join(values)
+
+
+st.markdown('<div class="top-brand"><span class="brand-icon">◇</span><span>КОНТУР</span><span class="top-tagline">Конфигуратор комплектующих</span></div>', unsafe_allow_html=True)
+hero_file = Path(__file__).parent / "assets" / "hero-components.png"
+if hero_file.exists():
+    hero_data = base64.b64encode(hero_file.read_bytes()).decode("ascii")
+    st.markdown(f'<style>.hero {{background-image: url("data:image/png;base64,{hero_data}") !important;}}</style>', unsafe_allow_html=True)
+st.markdown('<div class="hero"><div class="hero-copy"><h1>Собери свой ПК</h1><p>Проверь совместимость комплектующих</p><div class="hero-line"></div></div></div>', unsafe_allow_html=True)
+
+with st.expander("⚙  Настройки и примеры сборок", expanded=False):
     st.markdown('<div class="side-logo"><span>◈</span> Контур</div><div class="side-label">Конфигуратор ПК</div>', unsafe_allow_html=True)
     st.caption("Помощник перед покупкой и апгрейдом")
     st.divider()
@@ -238,13 +293,7 @@ with st.sidebar:
         except (ValueError, TypeError) as exc:
             st.error(str(exc))
     st.caption("Контур · версия " + build_label())
-
-st.markdown('<div class="top-brand"><span class="brand-icon">◇</span><span>КОНТУР</span><span class="top-tagline">Конфигуратор комплектующих</span></div>', unsafe_allow_html=True)
-hero_file = Path(__file__).parent / "assets" / "hero-components.png"
-if hero_file.exists():
-    hero_data = base64.b64encode(hero_file.read_bytes()).decode("ascii")
-    st.markdown(f'<style>.hero {{background-image: url("data:image/png;base64,{hero_data}") !important;}}</style>', unsafe_allow_html=True)
-st.markdown('<div class="hero"><div class="hero-copy"><h1>Собери свой ПК</h1><p>Проверь совместимость комплектующих</p><div class="hero-line"></div></div></div>', unsafe_allow_html=True)
+    workflow = st.radio("Что хотите сделать?", ["Проверить сборку", "Обновить компьютер", "Собрать с нуля"], key="customer_workflow")
 if "notice" in st.session_state:
     st.success(st.session_state.pop("notice"))
 if storage_error:
@@ -277,8 +326,6 @@ elif store and st.session_state.get("draft_recovery_error"):
         store.save_draft(payload)
         st.session_state.pop("draft_recovery_error", None)
         st.rerun()
-with st.sidebar:
-    workflow = st.radio("Что хотите сделать?", ["Проверить сборку", "Обновить компьютер", "Собрать с нуля"], key="customer_workflow")
 workflow_id = ["Проверить сборку", "Обновить компьютер", "Собрать с нуля"].index(workflow)
 stats = kb.stats()
 required_count = 7 if build.graphics_mode == "integrated" else 8
@@ -292,18 +339,25 @@ with builder:
     with left, st.container(border=True):
         st.subheader("⚙  Конфигуратор")
         st.caption("Выберите комплектующие для проверки совместимости")
+        st.progress(selected_count / required_count, text=f"Выбрано {selected_count} из {required_count} компонентов")
+        mobile_text = {"pass": "Выбранные компоненты прошли доступные проверки.", "fail": "Найдены конфликты — подробности после списка компонентов.", "unknown": "Для полной проверки нужны дополнительные сведения."}[physical_review["status"]]
+        st.markdown(f'<div class="mobile-summary">{mobile_text}</div>', unsafe_allow_html=True)
         for i, (slot, label) in enumerate(KINDS.items()):
             if slot == "GPU" and build.graphics_mode == "integrated":
                 continue
             options = [None] + [c.id for c in kb.by_kind(slot) if c.get("catalogKind") == st.session_state.catalog_mode or c.id == build.parts.get(slot)]
             label_col, input_col = st.columns([1, 1.45], vertical_alignment="center")
             with label_col:
-                st.markdown(f'<div class="part-label"><span class="part-icon">{dict(CPU="▦", Motherboard="▣", RAM="▤", GPU="▥", PSU="◧", Case="▢", Storage="▣", Cooler="✣").get(slot, "◈")}</span><strong>{label}</strong></div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="part-label"><span class="part-icon">{part_icon(slot)}</span><strong>{label}</strong></div>', unsafe_allow_html=True)
             with input_col:
                 st.selectbox(label, options, key="part_" + slot, label_visibility="collapsed", placeholder="Не выбрано",
                              on_change=board_changed if slot == "Motherboard" else None,
                              format_func=lambda id: "Не выбрано" if id is None else kb.components[id].title)
                 selected = st.session_state["part_" + slot]
+                if selected:
+                    summary = component_summary(kb.components[selected])
+                    if summary:
+                        st.caption(summary)
         with st.expander("Указать цены выбранных деталей", expanded=False):
             st.caption("Введите цену своего предложения за деталь или комплект памяти. Это не автоматическая цена магазина. Пустое поле означает неизвестную цену.")
             with st.form("purchase_prices"):
@@ -326,15 +380,15 @@ with builder:
                         st.rerun()
                     except (ValueError, TypeError, sqlite3.Error, OSError) as exc:
                         st.error("Не удалось сохранить цены: " + str(exc))
-        st.download_button("Скачать памятку перед покупкой", checklist(kb, build), file_name="purchase-checklist.md", mime="text/markdown")
-        # Selectboxes update session_state before rerunning, so build/result above already match the selection.
-        st.download_button("Сохранить сборку и объяснения", json.dumps(export_build(kb, build), ensure_ascii=False, indent=2),
-                           file_name="pc-build.json", mime="application/json", width="stretch")
-        st.download_button("Скачать сборку с проверками в OWL", export_rdf(kb, build),
-                           file_name="pc-build.owl", mime="application/rdf+xml", width="stretch")
-        st.download_button("Отчёт для печати", render_report(kb, build), file_name="pc-build-report.html",
-                           mime="text/html", width="stretch")
-        st.caption(("Черновик хранится только в вашем текущем сеансе. Скачайте JSON для длительного хранения." if public_demo else "Последняя конфигурация сохранена на этом компьютере. Для сохранения под названием откройте «Мои сборки».") if draft_saved else "Скачайте JSON, чтобы сохранить текущую конфигурацию; черновик сейчас недоступен.")
+        with st.expander("Сохранить или скачать сборку"):
+            st.download_button("Скачать памятку перед покупкой", checklist(kb, build), file_name="purchase-checklist.md", mime="text/markdown")
+            st.download_button("Сохранить сборку и объяснения", json.dumps(export_build(kb, build), ensure_ascii=False, indent=2),
+                               file_name="pc-build.json", mime="application/json", width="stretch")
+            st.download_button("Скачать сборку с проверками в OWL", export_rdf(kb, build),
+                               file_name="pc-build.owl", mime="application/rdf+xml", width="stretch")
+            st.download_button("Отчёт для печати", render_report(kb, build), file_name="pc-build-report.html",
+                               mime="text/html", width="stretch")
+            st.caption(("Черновик хранится только в вашем текущем сеансе. Скачайте JSON для длительного хранения." if public_demo else "Последняя конфигурация сохранена на этом компьютере. Для сохранения под названием откройте «Мои сборки».") if draft_saved else "Скачайте JSON, чтобы сохранить текущую конфигурацию; черновик сейчас недоступен.")
     with right, st.container(border=True):
         st.subheader("♢  Проверка совместимости")
         review = assessment(kb, build)
@@ -349,14 +403,37 @@ with builder:
         st.markdown(f"**Конфликты: {len(review['conflicts'])} · Уточнения: {len(review['unknown'])} · Пройдено: {len(review['passed'])}**")
         for check in review["conflicts"]:
             with st.container(border=True):
-                st.error(check.title)
-                st.write(check.explanation)
+                check_row(check)
                 for line in check.evidence:
                     st.caption(line)
                 for kind in check.participants:
-                    if st.button("Подобрать: " + KINDS[kind].lower(), key=f"fix_{check.rule}_{kind}"):
+                    if st.button("Показать варианты: " + KINDS[kind].lower(), key=f"fix_{check.rule}_{kind}"):
+                        st.session_state.quick_fix = (check.rule, kind)
                         st.session_state.recommend_slot = kind
-                        st.session_state.fix_notice = "Варианты для категории «" + KINDS[kind] + "» показаны ниже в разделе «Подобрать замену»."
+                if st.session_state.get("quick_fix", (None, None))[0] == check.rule:
+                    kind = st.session_state.quick_fix[1]
+                    choices = [row for row in recommend(kb, build, kind)
+                               if row["status"] in ("pass", "unknown")
+                               and row["component"].get("catalogKind") == st.session_state.catalog_mode
+                               and row["component"].id != build.parts.get(kind)]
+                    st.caption("Варианты для категории «" + KINDS[kind] + "». Другие конфликты могут сохраниться; уточняйте непроверенные условия.")
+                    if not choices:
+                        st.info("Подходящих вариантов в этом каталоге не найдено. Проверьте другие компоненты или категорию.")
+                    for row in choices[:3]:
+                        candidate = row["component"]
+                        impact = replacement_impact(kb, build, kind, candidate.id, row["bios_revision"])
+                        st.markdown("**" + candidate.title + "** · " + STATUS_LABELS[row["status"]])
+                        st.caption(f"После замены: конфликтов {impact['conflicts']}, уточнений {impact['unknown']}, не выбрано деталей {impact['missing']}.")
+                        if st.button("Выбрать " + candidate.title, key=f"quick_{check.rule}_{kind}_{candidate.id}"):
+                            st.session_state.pending_build = replace(build, parts={**build.parts, kind: candidate.id}, bios_revision=row["bios_revision"])
+                            st.session_state.pop("quick_fix", None)
+                            st.rerun()
+                    if len(choices) > 3:
+                        st.caption("Другие варианты доступны в разделе «Подобрать замену» ниже.")
+        for check in review["unknown"]:
+            check_row(check)
+        for check in review["passed"]:
+            check_row(check)
         for check in review["budget"]:
             if check.status == "fail":
                 st.warning("Бюджет: " + check.explanation)
@@ -381,7 +458,6 @@ with builder:
     m2.metric("Стоимость по заданным ценам", ("от " if result.unknown_prices else "") + money(result.total))
     m3.metric("Расчётный минимум БП", f"{result.estimated_power} Вт" if result.estimated_power is not None else "Нет данных")
     m4.metric("Конфликты / нет данных", f"{len(physical_review['conflicts'])} / {len(physical_review['unknown'])}")
-    st.progress(selected_count / required_count, text=f"Состав сборки: {selected_count} из {required_count} компонентов")
     if result.missing:
         st.caption("Добавьте остальные компоненты, чтобы получить полную оценку. Счётчик конфликтов относится только к выбранным деталям.")
     st.caption("Реальные модели сопровождаются источниками. Учебные модели и цены вымышлены; цены реальных деталей указываете вы. Проверка похожей модели не подтверждает совместимость вашей детали.")

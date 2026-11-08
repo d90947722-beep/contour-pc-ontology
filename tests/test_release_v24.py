@@ -26,6 +26,20 @@ def test_empty_build_shows_candidates_only_on_request():
     assert any(b.key and str(b.key).startswith("replace_") for b in app.button)
 
 
+def test_conflict_can_show_and_apply_inline_replacement():
+    app = AppTest.from_file(str(ROOT / "app.py"), default_timeout=40).run()
+    app.selectbox(key="part_RAM").select("ram_d4_32").run()
+    fix = next(b for b in app.button if b.key and b.key.startswith("fix_") and b.key.endswith("_RAM"))
+    fix.click().run()
+    assert not app.exception
+    assert app.selectbox(key="recommend_slot").value == "RAM"
+    replacement = next(b for b in app.button if b.key and b.key.startswith("quick_") and b.key.endswith("_ram_d5_32"))
+    replacement.click().run()
+    assert not app.exception
+    assert app.selectbox(key="part_RAM").value == "ram_d5_32"
+    assert any("Сборка прошла проверки" in m.value for m in app.markdown)
+
+
 @pytest.mark.parametrize("entry", ["app.py", "cloud_app.py"])
 def test_guided_demo_repairs_only_memory_and_psu(entry):
     app = AppTest.from_file(str(ROOT / entry), default_timeout=40).run()
