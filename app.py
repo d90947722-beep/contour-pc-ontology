@@ -24,34 +24,48 @@ from pc_ontology.version import build_label
 st.set_page_config(page_title="Контур · подбор комплектующих", page_icon="◈", layout="wide")
 public_demo = bool(globals().get("PUBLIC_DEMO", False))
 st.markdown("""<style>
-.block-container {max-width:1440px;padding-top:3.5rem;padding-bottom:4rem}
-h1 {font-weight:700!important;letter-spacing:-1.3px;font-size:2.75rem!important;line-height:1.14!important}
-h2,h3 {letter-spacing:-.45px}
-[data-testid="stMetric"] {background:#fff;border:1px solid #dce7df;padding:17px 20px;border-radius:12px;min-height:104px;box-shadow:0 3px 14px rgba(24,58,44,.035)}
-[data-testid="stMetricLabel"] {color:#5d746a}
+.block-container {max-width:1500px;padding-top:2.4rem;padding-bottom:5rem}
+h1,h2,h3 {letter-spacing:-.045em}
+h3 {font-weight:700!important}
+[data-testid="stMetric"] {background:#fff;border:1px solid #e1e8f3;padding:18px 20px;border-radius:14px;min-height:108px;box-shadow:0 8px 24px rgba(25,46,83,.045)}
+[data-testid="stMetricLabel"] {color:#64748b}
 [data-testid="stMetricLabel"] p {white-space:normal!important}
 [data-testid="stMetricValue"] {font-size:1.45rem!important}
-[data-testid="stSidebar"] {border-right:1px solid #dce7df}
-[data-testid="stSidebar"] [data-testid="stButton"] button {text-align:left;justify-content:flex-start}
-[data-testid="stTabs"] button {font-size:15px;font-weight:600}
-[data-testid="stTabs"] [role="tablist"] {gap:8px;border-bottom:1px solid #dce7df}
-[data-testid="stButton"] button,[data-testid="stDownloadButton"] button {border-radius:9px;min-height:42px}
-[data-testid="stExpander"] {border-color:#dce7df;border-radius:10px}
-.brand {font-size:12px;letter-spacing:1.8px;color:#226454;font-weight:700;margin-bottom:12px}
-.lead {font-size:18px;line-height:1.55;color:#526a60;max-width:760px;margin-bottom:12px}
-.section-note {font-size:14px;color:#526a60;line-height:1.5}
+[data-testid="stSidebar"] {border-right:1px solid #dbe4f1}
+[data-testid="stSidebar"] [data-testid="stButton"] button {text-align:left;justify-content:flex-start;background:#fff;border-color:#dce5f2;color:#243a59;font-size:.87rem}
+[data-testid="stSidebar"] [data-testid="stButton"] button:hover {border-color:#2563eb;color:#1d4ed8}
+[data-testid="stTabs"] button {font-size:14px;font-weight:650}
+[data-testid="stTabs"] [role="tablist"] {gap:9px;border-bottom:1px solid #dce5f2}
+[data-testid="stButton"] button,[data-testid="stDownloadButton"] button {border-radius:10px;min-height:42px}
+[data-testid="stExpander"] {border-color:#dce5f2;border-radius:12px}
+.side-logo {display:flex;align-items:center;gap:10px;color:#142744;font-size:21px;font-weight:800;letter-spacing:-.04em}
+.side-logo span {display:grid;place-items:center;width:36px;height:36px;border-radius:11px;background:#2563eb;color:white;font-size:20px}
+.side-label {margin-top:9px;color:#637994;font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+.hero {position:relative;overflow:hidden;display:flex;align-items:center;min-height:232px;padding:34px 38px;border-radius:20px;background:linear-gradient(117deg,#0d1b36 0%,#13294c 60%,#173e69 100%);color:white;box-shadow:0 16px 32px rgba(13,36,73,.16)}
+.hero-copy {position:relative;z-index:2;max-width:650px}
+.hero-eyebrow {display:flex;align-items:center;gap:9px;font-size:11px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;color:#a9c8ff}
+.hero-eyebrow:before {content:'';width:7px;height:7px;border-radius:50%;background:#6ce1ce;box-shadow:0 0 12px #6ce1ce}
+.hero h1 {color:#fff!important;font-size:clamp(2rem,3.2vw,3.25rem)!important;line-height:1.08!important;margin:15px 0 12px!important;padding:0!important;letter-spacing:-.055em}
+.hero p {color:#d0dcf0;line-height:1.55;font-size:16px;margin:0;max-width:540px}
+.hero-art {position:absolute;right:3%;top:-12%;width:340px;height:300px;opacity:.9;background:radial-gradient(circle at center,rgba(94,194,255,.19),transparent 64%),repeating-linear-gradient(90deg,transparent 0 36px,rgba(139,189,248,.09) 37px 38px),repeating-linear-gradient(0deg,transparent 0 36px,rgba(139,189,248,.09) 37px 38px);mask-image:radial-gradient(ellipse,#000 25%,transparent 74%)}
+.hero-chip {position:absolute;width:112px;height:112px;top:94px;left:114px;display:grid;place-items:center;border:1px solid #79c2ff;border-radius:22px;background:linear-gradient(145deg,#1e4a7d,#102547);transform:rotate(-12deg);box-shadow:0 0 0 12px rgba(103,170,255,.06),0 0 55px rgba(79,163,255,.3);color:#c1e7ff;font-size:34px;font-weight:800;letter-spacing:-.07em}
+.hero-chip:after {content:'';position:absolute;inset:9px;border:1px solid rgba(144,206,255,.35);border-radius:14px}
+.workspace-kicker {color:#58739a;font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;margin:12px 0 2px}
 .statusbox {padding:22px 24px;border-radius:14px;border:1px solid;margin:4px 0 16px}
 .statusbox.good {background:#eaf5ed;border-color:#bad9c2;color:#235c37}
 .statusbox.bad {background:#fff0eb;border-color:#efc2b3;color:#8a3924}
 .statusbox.wait {background:#fff7e6;border-color:#ead5a4;color:#7d601f}
 .statusbox strong {font-size:21px;display:block;margin-bottom:6px}
-.smallnote {color:#68796e;font-size:13px}
-.statusbox,.lead,[data-testid="stCaptionContainer"] {overflow-wrap:anywhere}
+.smallnote {color:#60718c;font-size:13px}
+.statusbox,[data-testid="stCaptionContainer"] {overflow-wrap:anywhere}
 @media(max-width:700px) {
-  .block-container {padding-top:2rem}
+  .block-container {padding-top:1.5rem}
   [data-testid="stHorizontalBlock"] {flex-wrap:wrap!important}
   [data-testid="stColumn"] {min-width:min(100%,240px)!important;flex:1 1 240px!important}
-  h1 {font-size:2rem!important;letter-spacing:-.7px!important}
+  .hero {min-height:220px;padding:28px 24px}
+  .hero h1 {font-size:2.05rem!important}
+  .hero p {font-size:14px}
+  .hero-art {opacity:.22;right:-125px}
 }
 </style>""", unsafe_allow_html=True)
 
@@ -145,7 +159,7 @@ def details(check):
 
 
 with st.sidebar:
-    st.markdown("### ◈ Контур")
+    st.markdown('<div class="side-logo"><span>◈</span> Контур</div><div class="side-label">Конфигуратор ПК</div>', unsafe_allow_html=True)
     st.caption("Помощник перед покупкой и апгрейдом")
     st.divider()
     st.markdown("**Готовые сценарии**")
@@ -195,9 +209,7 @@ with st.sidebar:
             st.error(str(exc))
     st.caption("Контур · версия " + build_label())
 
-st.markdown('<div class="brand">КОНТУР / БАЗА ЗНАНИЙ О КОМПЛЕКТУЮЩИХ</div>', unsafe_allow_html=True)
-st.title("Соберите ПК с уверенностью")
-st.markdown('<div class="lead">Выберите комплектующие, проверьте совместимость и получите понятные рекомендации по исправлению сборки.</div>', unsafe_allow_html=True)
+st.markdown('<div class="hero"><div class="hero-copy"><div class="hero-eyebrow">КОНТУР / КОНФИГУРАТОР ПК</div><h1>Каждая деталь<br>имеет значение.</h1><p>Выберите комплектующие — мы проверим их совместимость и поможем найти решение.</p></div><div class="hero-art" aria-hidden="true"><div class="hero-chip">◈</div></div></div>', unsafe_allow_html=True)
 st.caption("Реальные модели сопровождаются источниками. Учебные модели и цены вымышлены; цены реальных деталей указываете вы.")
 if public_demo:
     st.info("Сборка хранится в текущем сеансе. Скачайте JSON, чтобы сохранить её после закрытия страницы.", icon="ℹ️")
@@ -233,6 +245,7 @@ elif store and st.session_state.get("draft_recovery_error"):
         store.save_draft(payload)
         st.session_state.pop("draft_recovery_error", None)
         st.rerun()
+st.markdown('<div class="workspace-kicker">01 / ВАША ЗАДАЧА</div>', unsafe_allow_html=True)
 workflow = st.radio("Что хотите сделать?", ["Проверить сборку", "Обновить компьютер", "Собрать с нуля"], horizontal=True, key="customer_workflow")
 workflow_id = ["Проверить сборку", "Обновить компьютер", "Собрать с нуля"].index(workflow)
 st.caption(["Выберите точные модели. Мы покажем конфликты, неподтверждённые условия и варианты замены.",
@@ -240,6 +253,7 @@ st.caption(["Выберите точные модели. Мы покажем к�
             "Укажите цены кандидатов, бюджет и цель подбора. Можно закрепить уже выбранные детали. Результат зависит от покрытия каталога."][workflow_id])
 st.caption(f"Моделей в реальном каталоге: {sum(c.get('catalogKind') == 'manufacturer' for c in kb.components.values())}. Если вашей точной модели нет, проверка похожей модели не подтверждает совместимость вашей детали.")
 stats = kb.stats()
+st.markdown('<div class="workspace-kicker">02 / ОБЗОР СБОРКИ</div>', unsafe_allow_html=True)
 m1, m2, m3, m4 = st.columns(4)
 required_count = 7 if build.graphics_mode == "integrated" else 8
 m1.metric("Выбрано компонентов", f"{required_count - len(result.missing)} / {required_count}")
