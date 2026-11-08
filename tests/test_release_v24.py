@@ -16,6 +16,16 @@ def isolated_storage(tmp_path, monkeypatch):
     monkeypatch.setenv("PC_ONTOLOGY_DATA_DIR", str(tmp_path / "data"))
 
 
+def test_empty_build_shows_candidates_only_on_request():
+    app = AppTest.from_file(str(ROOT / "cloud_app.py"), default_timeout=40).run()
+    assert not app.exception
+    assert app.metric[0].value == "0 / 8"
+    assert not any(b.key and str(b.key).startswith("replace_") for b in app.button)
+    app.checkbox(key="show_empty_recommendations").check().run()
+    assert not app.exception
+    assert any(b.key and str(b.key).startswith("replace_") for b in app.button)
+
+
 @pytest.mark.parametrize("entry", ["app.py", "cloud_app.py"])
 def test_guided_demo_repairs_only_memory_and_psu(entry):
     app = AppTest.from_file(str(ROOT / entry), default_timeout=40).run()

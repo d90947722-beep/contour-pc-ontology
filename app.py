@@ -24,16 +24,22 @@ from pc_ontology.version import build_label
 st.set_page_config(page_title="Контур · подбор комплектующих", page_icon="◈", layout="wide")
 public_demo = bool(globals().get("PUBLIC_DEMO", False))
 st.markdown("""<style>
-.block-container {max-width:1500px;padding-top:4.4rem;padding-bottom:3rem}
-h1 {font-weight:650!important;letter-spacing:-1.4px;font-size:2.65rem!important}
-h2,h3 {letter-spacing:-.4px}
-[data-testid="stMetric"] {background:white;border:1px solid #dce5dc;padding:16px 22px;border-radius:12px}
-[data-testid="stMetricLabel"] {color:#577065}
+.block-container {max-width:1440px;padding-top:3.5rem;padding-bottom:4rem}
+h1 {font-weight:700!important;letter-spacing:-1.3px;font-size:2.75rem!important;line-height:1.14!important}
+h2,h3 {letter-spacing:-.45px}
+[data-testid="stMetric"] {background:#fff;border:1px solid #dce7df;padding:17px 20px;border-radius:12px;min-height:104px;box-shadow:0 3px 14px rgba(24,58,44,.035)}
+[data-testid="stMetricLabel"] {color:#5d746a}
 [data-testid="stMetricLabel"] p {white-space:normal!important}
-[data-testid="stSidebar"] {border-right:1px solid #dce5dc}
-[data-testid="stTabs"] button {font-size:15px}
-.brand {font-size:13px;letter-spacing:2px;color:#176b57;font-weight:700;margin-bottom:14px}
-.lead {font-size:17px;color:#58695f;max-width:820px;margin-bottom:26px}
+[data-testid="stMetricValue"] {font-size:1.45rem!important}
+[data-testid="stSidebar"] {border-right:1px solid #dce7df}
+[data-testid="stSidebar"] [data-testid="stButton"] button {text-align:left;justify-content:flex-start}
+[data-testid="stTabs"] button {font-size:15px;font-weight:600}
+[data-testid="stTabs"] [role="tablist"] {gap:8px;border-bottom:1px solid #dce7df}
+[data-testid="stButton"] button,[data-testid="stDownloadButton"] button {border-radius:9px;min-height:42px}
+[data-testid="stExpander"] {border-color:#dce7df;border-radius:10px}
+.brand {font-size:12px;letter-spacing:1.8px;color:#226454;font-weight:700;margin-bottom:12px}
+.lead {font-size:18px;line-height:1.55;color:#526a60;max-width:760px;margin-bottom:12px}
+.section-note {font-size:14px;color:#526a60;line-height:1.5}
 .statusbox {padding:22px 24px;border-radius:14px;border:1px solid;margin:4px 0 16px}
 .statusbox.good {background:#eaf5ed;border-color:#bad9c2;color:#235c37}
 .statusbox.bad {background:#fff0eb;border-color:#efc2b3;color:#8a3924}
@@ -41,11 +47,11 @@ h2,h3 {letter-spacing:-.4px}
 .statusbox strong {font-size:21px;display:block;margin-bottom:6px}
 .smallnote {color:#68796e;font-size:13px}
 .statusbox,.lead,[data-testid="stCaptionContainer"] {overflow-wrap:anywhere}
-@media(max-width:1050px) {
+@media(max-width:700px) {
+  .block-container {padding-top:2rem}
   [data-testid="stHorizontalBlock"] {flex-wrap:wrap!important}
-  [data-testid="stColumn"] {min-width:min(100%,300px)!important;flex:1 1 300px!important}
-  [data-testid="stMetricValue"] {font-size:1.8rem!important}
-  h1 {font-size:2.1rem!important}
+  [data-testid="stColumn"] {min-width:min(100%,240px)!important;flex:1 1 240px!important}
+  h1 {font-size:2rem!important;letter-spacing:-.7px!important}
 }
 </style>""", unsafe_allow_html=True)
 
@@ -190,11 +196,11 @@ with st.sidebar:
     st.caption("Контур · версия " + build_label())
 
 st.markdown('<div class="brand">КОНТУР / БАЗА ЗНАНИЙ О КОМПЛЕКТУЮЩИХ</div>', unsafe_allow_html=True)
-st.title("Проверьте сборку до покупки.")
-st.markdown('<div class="lead">Соберите конфигурацию, проверьте ограничения и узнайте, почему компоненты подходят друг другу.</div>', unsafe_allow_html=True)
-st.caption("Учебный каталог содержит вымышленные модели. Реальные модели снабжены источниками производителей. Цены для них вводятся вами; неизвестные сведения требуют уточнения.")
+st.title("Соберите ПК с уверенностью")
+st.markdown('<div class="lead">Выберите комплектующие, проверьте совместимость и получите понятные рекомендации по исправлению сборки.</div>', unsafe_allow_html=True)
+st.caption("Реальные модели сопровождаются источниками. Учебные модели и цены вымышлены; цены реальных деталей указываете вы.")
 if public_demo:
-    st.info("Публичная демонстрация: сборки и цены доступны только в вашем текущем сеансе. После обновления страницы или разрыва соединения они могут исчезнуть. Скачайте сборку в JSON, чтобы сохранить её надолго.")
+    st.info("Сборка хранится в текущем сеансе. Скачайте JSON, чтобы сохранить её после закрытия страницы.", icon="ℹ️")
 if "notice" in st.session_state:
     st.success(st.session_state.pop("notice"))
 if storage_error:
@@ -241,6 +247,10 @@ m2.metric("Стоимость по заданным ценам", ("от " if res
 m3.metric("Расчётный минимум БП", f"{result.estimated_power} Вт" if result.estimated_power is not None else "Нет данных")
 physical_review = assessment(kb, build)
 m4.metric("Конфликты / нет данных", f"{len(physical_review['conflicts'])} / {len(physical_review['unknown'])}")
+selected_count = required_count - len(result.missing)
+st.progress(selected_count / required_count, text=f"Состав сборки: {selected_count} из {required_count} компонентов")
+if result.missing:
+    st.caption("Добавьте остальные компоненты, чтобы получить полную оценку. Счётчик конфликтов относится только к выбранным деталям.")
 st.write("")
 planning_title = "Апгрейд и новая сборка"
 builder, library, planning, catalog, ontology, quality, about = st.tabs(["Проверка сборки", "Мои сборки", planning_title, "Каталог", "Онтология и вывод", "Качество данных", "О проекте"], default="Проверка сборки" if workflow_id == 0 else planning_title, key=f"workspace_tabs_{workflow_id}")
@@ -343,8 +353,15 @@ with builder:
     with r2:
         statuses = st.multiselect("Какие варианты показать", ["pass", "unknown", "fail"], default=["pass", "unknown"],
                                  format_func=STATUS_LABELS.get)
-    candidates = [r for r in recommend(kb, build, slot) if r["status"] in statuses and r["component"].get("catalogKind") == st.session_state.catalog_mode]
-    if not candidates:
+    show_candidates = bool(build.parts.get(slot))
+    if not show_candidates:
+        st.caption("В этой категории ещё нет выбранной детали. Выберите её в составе или откройте доступные варианты ниже.")
+        show_candidates = st.checkbox("Показать варианты для пустой категории", key="show_empty_recommendations")
+    candidates = ([r for r in recommend(kb, build, slot) if r["status"] in statuses and r["component"].get("catalogKind") == st.session_state.catalog_mode]
+                  if show_candidates else [])
+    if not show_candidates:
+        pass
+    elif not candidates:
         st.info("Вариантов с выбранным статусом нет. Покажите конфликты, чтобы увидеть причины, или измените остальные компоненты.")
     for row in candidates:
         candidate = row["component"]
