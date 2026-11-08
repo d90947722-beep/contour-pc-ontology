@@ -6,6 +6,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 import sqlite3
 import hashlib
+import base64
 import streamlit as st
 from pc_ontology.knowledge import KnowledgeBase, QUERIES
 from pc_ontology.schema import KINDS, OWL_PATH
@@ -21,7 +22,7 @@ from pc_ontology.explorer import neighborhood, label as entity_label
 from pc_ontology.purchase import assessment, replacement_impact, shopping_cost, checklist
 from pc_ontology.version import build_label
 
-st.set_page_config(page_title="Контур · подбор комплектующих", page_icon="◈", layout="wide")
+st.set_page_config(page_title="Контур · подбор комплектующих", page_icon="◈", layout="wide", initial_sidebar_state="collapsed")
 public_demo = bool(globals().get("PUBLIC_DEMO", False))
 st.markdown("""<style>
 .block-container {max-width:1500px;padding-top:2.4rem;padding-bottom:5rem}
@@ -58,6 +59,27 @@ h3 {font-weight:700!important}
 .statusbox strong {font-size:21px;display:block;margin-bottom:6px}
 .smallnote {color:#60718c;font-size:13px}
 .statusbox,[data-testid="stCaptionContainer"] {overflow-wrap:anywhere}
+/* Светлый интерфейс конфигуратора */
+.block-container {max-width:1550px;padding-top:3rem}
+.top-brand {height:66px;display:flex;align-items:center;gap:14px;font-size:28px;line-height:1;font-weight:850;letter-spacing:.01em;color:#061536}
+.brand-icon {font-size:42px;line-height:1;color:#1254f5;font-weight:400}
+.top-tagline {font-size:14px;font-weight:500;color:#6b7b99;border-left:1px solid #ccd8e9;padding-left:22px;margin-left:12px;letter-spacing:0}
+.hero {min-height:245px;padding:40px 46px;border-radius:0;background-color:#dceaff;background-size:cover;background-position:center;box-shadow:none;color:#071735}
+.hero-copy {max-width:59%}
+.hero h1 {color:#061536!important;font-size:clamp(2.4rem,4vw,4rem)!important;margin:0 0 12px!important;letter-spacing:-.045em}
+.hero p {color:#60718e;font-size:clamp(1rem,1.5vw,1.45rem);line-height:1.35}
+.hero-line {width:76px;height:5px;border-radius:4px;background:#1458fa;margin-top:25px}
+[data-testid="stTabs"] [role="tablist"] {gap:24px;margin:4px 0 12px;border-bottom:1px solid #d7e2f2}
+[data-testid="stTabs"] button {font-size:14px;font-weight:700;color:#1b2b4a;padding:12px 0}
+[data-testid="stVerticalBlockBorderWrapper"] > div {border-color:#d6e1f1!important;border-radius:16px!important;background:#fff;box-shadow:0 6px 20px rgba(38,74,130,.045)}
+[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] h3#konfigurator),
+[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] h3#proverka-sovmestimosti) {background:#fff!important;border:1px solid #d6e1f1!important;border-radius:16px!important;box-shadow:0 6px 20px rgba(38,74,130,.045)}
+[data-testid="stSelectbox"] [data-baseweb="select"] > div {border:1px solid #b8cae4!important;border-radius:8px!important;background:#fff;min-height:45px}
+.part-label {display:flex;align-items:center;gap:13px;min-height:49px;font-size:15px;color:#142345}
+.part-icon {display:grid;place-items:center;width:44px;height:44px;flex:0 0 44px;border-radius:10px;color:#0647d2;background:#e8f0ff;font-size:23px}
+.statusbox.good {background:#ddf5e4;border-color:#b9ebca;color:#107c36}
+.statusbox.wait {background:#fff7e4;border-color:#f0dfb3;color:#755a1f}
+.statusbox.bad {background:#fff0ec;border-color:#f2c6bb;color:#9a3829}
 @media(max-width:700px) {
   .block-container {padding-top:1.5rem}
   [data-testid="stHorizontalBlock"] {flex-wrap:wrap!important}
@@ -66,6 +88,14 @@ h3 {font-weight:700!important}
   .hero h1 {font-size:2.05rem!important}
   .hero p {font-size:14px}
   .hero-art {opacity:.22;right:-125px}
+  .top-brand {font-size:23px}
+  .top-tagline {display:none}
+  .hero {min-height:190px;padding:28px 22px;background-position:65% center}
+  .hero:before {content:'';position:absolute;inset:0;background:linear-gradient(90deg,rgba(222,235,255,.98) 0%,rgba(222,235,255,.92) 48%,rgba(222,235,255,0) 100%)}
+  .hero-copy {max-width:72%}
+  .hero h1 {font-size:2.1rem!important}
+  .hero p {font-size:1rem}
+  .part-label {min-height:auto}
 }
 </style>""", unsafe_allow_html=True)
 
@@ -209,10 +239,12 @@ with st.sidebar:
             st.error(str(exc))
     st.caption("Контур · версия " + build_label())
 
-st.markdown('<div class="hero"><div class="hero-copy"><div class="hero-eyebrow">КОНТУР / КОНФИГУРАТОР ПК</div><h1>Каждая деталь<br>имеет значение.</h1><p>Выберите комплектующие — мы проверим их совместимость и поможем найти решение.</p></div><div class="hero-art" aria-hidden="true"><div class="hero-chip">◈</div></div></div>', unsafe_allow_html=True)
-st.caption("Реальные модели сопровождаются источниками. Учебные модели и цены вымышлены; цены реальных деталей указываете вы.")
-if public_demo:
-    st.info("Сборка хранится в текущем сеансе. Скачайте JSON, чтобы сохранить её после закрытия страницы.", icon="ℹ️")
+st.markdown('<div class="top-brand"><span class="brand-icon">◇</span><span>КОНТУР</span><span class="top-tagline">Конфигуратор комплектующих</span></div>', unsafe_allow_html=True)
+hero_file = Path(__file__).parent / "assets" / "hero-components.png"
+if hero_file.exists():
+    hero_data = base64.b64encode(hero_file.read_bytes()).decode("ascii")
+    st.markdown(f'<style>.hero {{background-image: url("data:image/png;base64,{hero_data}") !important;}}</style>', unsafe_allow_html=True)
+st.markdown('<div class="hero"><div class="hero-copy"><h1>Собери свой ПК</h1><p>Проверь совместимость комплектующих</p><div class="hero-line"></div></div></div>', unsafe_allow_html=True)
 if "notice" in st.session_state:
     st.success(st.session_state.pop("notice"))
 if storage_error:
@@ -245,46 +277,33 @@ elif store and st.session_state.get("draft_recovery_error"):
         store.save_draft(payload)
         st.session_state.pop("draft_recovery_error", None)
         st.rerun()
-st.markdown('<div class="workspace-kicker">01 / ВАША ЗАДАЧА</div>', unsafe_allow_html=True)
-workflow = st.radio("Что хотите сделать?", ["Проверить сборку", "Обновить компьютер", "Собрать с нуля"], horizontal=True, key="customer_workflow")
+with st.sidebar:
+    workflow = st.radio("Что хотите сделать?", ["Проверить сборку", "Обновить компьютер", "Собрать с нуля"], key="customer_workflow")
 workflow_id = ["Проверить сборку", "Обновить компьютер", "Собрать с нуля"].index(workflow)
-st.caption(["Выберите точные модели. Мы покажем конфликты, неподтверждённые условия и варианты замены.",
-            "Сначала укажите текущие детали в проверке сборки. Затем выберите категории для замены и бюджет покупок во вкладке подбора.",
-            "Укажите цены кандидатов, бюджет и цель подбора. Можно закрепить уже выбранные детали. Результат зависит от покрытия каталога."][workflow_id])
-st.caption(f"Моделей в реальном каталоге: {sum(c.get('catalogKind') == 'manufacturer' for c in kb.components.values())}. Если вашей точной модели нет, проверка похожей модели не подтверждает совместимость вашей детали.")
 stats = kb.stats()
-st.markdown('<div class="workspace-kicker">02 / ОБЗОР СБОРКИ</div>', unsafe_allow_html=True)
-m1, m2, m3, m4 = st.columns(4)
 required_count = 7 if build.graphics_mode == "integrated" else 8
-m1.metric("Выбрано компонентов", f"{required_count - len(result.missing)} / {required_count}")
-m2.metric("Стоимость по заданным ценам", ("от " if result.unknown_prices else "") + money(result.total))
-m3.metric("Расчётный минимум БП", f"{result.estimated_power} Вт" if result.estimated_power is not None else "Нет данных")
 physical_review = assessment(kb, build)
-m4.metric("Конфликты / нет данных", f"{len(physical_review['conflicts'])} / {len(physical_review['unknown'])}")
 selected_count = required_count - len(result.missing)
-st.progress(selected_count / required_count, text=f"Состав сборки: {selected_count} из {required_count} компонентов")
-if result.missing:
-    st.caption("Добавьте остальные компоненты, чтобы получить полную оценку. Счётчик конфликтов относится только к выбранным деталям.")
-st.write("")
 planning_title = "Апгрейд и новая сборка"
 builder, library, planning, catalog, ontology, quality, about = st.tabs(["Проверка сборки", "Мои сборки", planning_title, "Каталог", "Онтология и вывод", "Качество данных", "О проекте"], default="Проверка сборки" if workflow_id == 0 else planning_title, key=f"workspace_tabs_{workflow_id}")
 
 with builder:
-    left, right = st.columns([1.12, 1], gap="large")
-    with left:
-        st.subheader("Ваша конфигурация")
-        st.caption("Проверки обновляются после каждого выбора. Цена указана за компонент или комплект памяти.")
-        cols = st.columns(2)
+    left, right = st.columns([1.35, 1], gap="medium")
+    with left, st.container(border=True):
+        st.subheader("⚙  Конфигуратор")
+        st.caption("Выберите комплектующие для проверки совместимости")
         for i, (slot, label) in enumerate(KINDS.items()):
             if slot == "GPU" and build.graphics_mode == "integrated":
                 continue
             options = [None] + [c.id for c in kb.by_kind(slot) if c.get("catalogKind") == st.session_state.catalog_mode or c.id == build.parts.get(slot)]
-            with cols[i % 2]:
-                st.selectbox(label, options, key="part_" + slot,
+            label_col, input_col = st.columns([1, 1.45], vertical_alignment="center")
+            with label_col:
+                st.markdown(f'<div class="part-label"><span class="part-icon">{dict(CPU="▦", Motherboard="▣", RAM="▤", GPU="▥", PSU="◧", Case="▢", Storage="▣", Cooler="✣").get(slot, "◈")}</span><strong>{label}</strong></div>', unsafe_allow_html=True)
+            with input_col:
+                st.selectbox(label, options, key="part_" + slot, label_visibility="collapsed", placeholder="Не выбрано",
                              on_change=board_changed if slot == "Motherboard" else None,
                              format_func=lambda id: "Не выбрано" if id is None else kb.components[id].title)
                 selected = st.session_state["part_" + slot]
-                st.caption(money(price_of(kb, build, selected)) if selected and price_of(kb, build, selected) is not None else "Цена не задана")
         with st.expander("Указать цены выбранных деталей", expanded=False):
             st.caption("Введите цену своего предложения за деталь или комплект памяти. Это не автоматическая цена магазина. Пустое поле означает неизвестную цену.")
             with st.form("purchase_prices"):
@@ -316,8 +335,8 @@ with builder:
         st.download_button("Отчёт для печати", render_report(kb, build), file_name="pc-build-report.html",
                            mime="text/html", width="stretch")
         st.caption(("Черновик хранится только в вашем текущем сеансе. Скачайте JSON для длительного хранения." if public_demo else "Последняя конфигурация сохранена на этом компьютере. Для сохранения под названием откройте «Мои сборки».") if draft_saved else "Скачайте JSON, чтобы сохранить текущую конфигурацию; черновик сейчас недоступен.")
-    with right:
-        st.subheader("Результат проверки")
+    with right, st.container(border=True):
+        st.subheader("♢  Проверка совместимости")
         review = assessment(kb, build)
         heading = {"pass": "Сборка прошла проверки", "fail": "Есть несовместимые компоненты", "unknown": "Нужны дополнительные сведения"}[review["status"]]
         subtitle = {"pass": "Известные условия совместимости выполнены. Это не проверка всех возможных ограничений оборудования.",
@@ -356,6 +375,16 @@ with builder:
         with st.expander("Все проверки и исходные значения"):
             for check in result.checks:
                 details(check)
+    st.subheader("Обзор сборки")
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Выбрано компонентов", f"{selected_count} / {required_count}")
+    m2.metric("Стоимость по заданным ценам", ("от " if result.unknown_prices else "") + money(result.total))
+    m3.metric("Расчётный минимум БП", f"{result.estimated_power} Вт" if result.estimated_power is not None else "Нет данных")
+    m4.metric("Конфликты / нет данных", f"{len(physical_review['conflicts'])} / {len(physical_review['unknown'])}")
+    st.progress(selected_count / required_count, text=f"Состав сборки: {selected_count} из {required_count} компонентов")
+    if result.missing:
+        st.caption("Добавьте остальные компоненты, чтобы получить полную оценку. Счётчик конфликтов относится только к выбранным деталям.")
+    st.caption("Реальные модели сопровождаются источниками. Учебные модели и цены вымышлены; цены реальных деталей указываете вы. Проверка похожей модели не подтверждает совместимость вашей детали.")
     st.divider()
     st.subheader("Подобрать замену")
     if "fix_notice" in st.session_state:
